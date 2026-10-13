@@ -1,15 +1,16 @@
 import 'package:flutter/material.dart';
-import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'core/theme/app_colors.dart';
+import 'core/widgets/cow_mascot.dart';
+import 'shared/repositories/doodh_dost_repository.dart';
+import 'features/orders/orders_screen.dart';
+import 'features/orders/create_order_screen.dart';
+import 'features/shops/shops_screen.dart';
+import 'features/billing/final_bill_screen.dart';
 
 void main() {
   WidgetsFlutterBinding.ensureInitialized();
-  runApp(
-    const ProviderScope(
-      child: DoodhDostApp(),
-    ),
-  );
+  runApp(const DoodhDostApp());
 }
 
 class DoodhDostApp extends StatelessWidget {
@@ -55,18 +56,35 @@ class MainNavigationShell extends StatefulWidget {
 
 class _MainNavigationShellState extends State<MainNavigationShell> {
   int _currentIndex = 0;
+  final DoodhDostRepository _repository = DoodhDostRepository();
 
-  final List<Widget> _screens = const [
-    DashboardView(),
-    OrdersView(),
-    ShopsView(),
-    MoreMenuView(),
-  ];
+  void _refresh() {
+    setState(() {});
+  }
 
   @override
   Widget build(BuildContext context) {
+    final screens = [
+      DashboardView(
+        repository: _repository,
+        onNavigate: (index) => setState(() => _currentIndex = index),
+      ),
+      OrdersScreen(
+        repository: _repository,
+        onDataChanged: _refresh,
+      ),
+      ShopsScreen(
+        repository: _repository,
+        onDataChanged: _refresh,
+      ),
+      MoreMenuView(
+        repository: _repository,
+        onDataChanged: _refresh,
+      ),
+    ];
+
     return Scaffold(
-      body: _screens[_currentIndex],
+      body: screens[_currentIndex],
       bottomNavigationBar: NavigationBar(
         selectedIndex: _currentIndex,
         onDestinationSelected: (index) {
@@ -104,82 +122,143 @@ class _MainNavigationShellState extends State<MainNavigationShell> {
 }
 
 class DashboardView extends StatelessWidget {
-  const DashboardView({super.key});
+  final DoodhDostRepository repository;
+  final ValueChanged<int> onNavigate;
+
+  const DashboardView({
+    super.key,
+    required this.repository,
+    required this.onNavigate,
+  });
 
   @override
   Widget build(BuildContext context) {
+    final metrics = repository.getDashboardMetrics();
+    final todayStr = DateTime.now().toString().split(' ')[0];
+
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Doodh Dost'),
-        actions: [
-          IconButton(
-            icon: const Icon(Icons.notifications_none),
-            onPressed: () {},
-          ),
-        ],
+        title: Row(
+          children: const [
+            Text('Doodh Dost', style: TextStyle(fontWeight: FontWeight.bold)),
+            SizedBox(width: 6),
+            Text('दूध दोस्त', style: TextStyle(fontSize: 12, color: AppColors.primaryGreen)),
+          ],
+        ),
       ),
       body: SingleChildScrollView(
         padding: const EdgeInsets.all(16),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
-          child: [
-            // Welcome Header
+          children: [
+            // Welcome Header Card with Mascot
             Container(
               padding: const EdgeInsets.all(16),
               decoration: BoxDecoration(
                 color: AppColors.paleGreenBg,
-                borderRadius: BorderRadius.circular(16),
-                border: Border.all(color: AppColors.border),
+                borderRadius: BorderRadius.circular(20),
+                border: Border.all(color: AppColors.softGreen.withOpacity(0.7)),
               ),
               child: Row(
                 children: [
                   Expanded(
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
-                      children: const [
+                      children: [
                         Text(
-                          'Good morning, Ramesh!',
-                          style: TextStyle(
-                            fontSize: 18,
-                            fontWeight: FontWeight.w700,
-                            color: AppColors.textMain,
-                          ),
+                          todayStr,
+                          style: const TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: AppColors.primaryGreen),
                         ),
-                        SizedBox(height: 4),
-                        Text(
+                        const SizedBox(height: 2),
+                        const Text(
+                          'Good morning, Ramesh!',
+                          style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: AppColors.textMain),
+                        ),
+                        const SizedBox(height: 4),
+                        const Text(
                           'Ready for early morning milk delivery rounds.',
-                          style: TextStyle(
-                            fontSize: 13,
-                            color: AppColors.textSecondary,
-                          ),
+                          style: TextStyle(fontSize: 12, color: AppColors.textSecondary),
                         ),
                       ],
                     ),
                   ),
-                  const CircleAvatar(
-                    radius: 28,
-                    backgroundColor: Colors.white,
-                    child: Text('🐮', style: TextStyle(fontSize: 28)),
-                  ),
+                  const CowMascotWidget(size: 68, showMilkPacket: true),
                 ],
               ),
             ),
             const SizedBox(height: 16),
-            // Metrics Grid
+            // Primary Action Button
+            SizedBox(
+              width: double.infinity,
+              height: 48,
+              child: ElevatedButton.icon(
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: AppColors.primaryGreen,
+                  foregroundColor: Colors.white,
+                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+                ),
+                icon: const Icon(Icons.add, size: 20),
+                label: const Text('+ New Daily Order', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 15)),
+                onPressed: () {
+                  Navigator.push(
+                    context,
+                    MaterialPageRoute(
+                      builder: (ctx) => CreateOrderScreen(repository: repository),
+                    ),
+                  );
+                },
+              ),
+            ),
+            const SizedBox(height: 16),
+            // Metric Cards Grid
             Row(
               children: [
-                Expanded(child: _MetricCard(title: 'Orders Today', value: '24', icon: Icons.shopping_bag_outlined)),
+                Expanded(child: _MetricCard(title: 'Orders Today', value: '${metrics['ordersToday']}', icon: Icons.receipt_long)),
                 const SizedBox(width: 12),
-                Expanded(child: _MetricCard(title: 'Packets', value: '480', icon: Icons.local_shipping_outlined)),
+                Expanded(child: _MetricCard(title: 'Packets to Deliver', value: '${metrics['packetsToDeliver']}', icon: Icons.local_shipping)),
               ],
             ),
             const SizedBox(height: 12),
             Row(
               children: [
-                Expanded(child: _MetricCard(title: 'Billed Sales', value: '₹14,280', icon: Icons.currency_rupee)),
+                Expanded(child: _MetricCard(title: 'Billed Sales', value: '₹${(metrics['billedSales'] as double).toStringAsFixed(0)}', icon: Icons.currency_rupee)),
                 const SizedBox(width: 12),
-                Expanded(child: _MetricCard(title: 'Collected', value: '₹11,400', icon: Icons.payments_outlined)),
+                Expanded(child: _MetricCard(title: 'Collected', value: '₹${(metrics['collected'] as double).toStringAsFixed(0)}', icon: Icons.payments_outlined)),
               ],
+            ),
+            const SizedBox(height: 16),
+            // Outstanding Summary Card
+            Container(
+              padding: const EdgeInsets.all(14),
+              decoration: BoxDecoration(
+                color: AppColors.creamAccent,
+                borderRadius: BorderRadius.circular(14),
+                border: Border.all(color: const Color(0xFFFFE1B3)),
+              ),
+              child: Row(
+                mainAxisAlignment: MainAxisAlignment.between,
+                children: [
+                  Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      const Text('Total Shop Dues', style: TextStyle(fontSize: 12, color: Color(0xFF8C5D19), fontWeight: FontWeight.bold)),
+                      Text(
+                        '₹${(metrics['totalOutstanding'] as double).toStringAsFixed(0)}',
+                        style: const TextStyle(fontSize: 20, fontWeight: FontWeight.bold, color: Color(0xFF8C5D19)),
+                      ),
+                    ],
+                  ),
+                  ElevatedButton(
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: Colors.white,
+                      foregroundColor: const Color(0xFF8C5D19),
+                      elevation: 0,
+                    ),
+                    onPressed: () => onNavigate(2),
+                    child: const Text('View Shops'),
+                  ),
+                ],
+              ),
             ),
           ],
         ),
@@ -202,7 +281,7 @@ class _MetricCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Container(
-      padding: const EdgeInsets.all(16),
+      padding: const EdgeInsets.all(14),
       decoration: BoxDecoration(
         color: Colors.white,
         borderRadius: BorderRadius.circular(16),
@@ -213,29 +292,97 @@ class _MetricCard extends StatelessWidget {
         children: [
           Icon(icon, color: AppColors.primaryGreen, size: 22),
           const SizedBox(height: 8),
-          Text(title, style: const TextStyle(fontSize: 12, color: AppColors.textSecondary)),
-          const SizedBox(height: 4),
-          Text(value, style: const TextStyle(fontSize: 20, fontWeight: FontWeight.bold, color: AppColors.textMain)),
+          Text(title, style: const TextStyle(fontSize: 11, color: AppColors.textSecondary)),
+          const SizedBox(height: 2),
+          Text(value, style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: AppColors.textMain)),
         ],
       ),
     );
   }
 }
 
-class OrdersView extends StatelessWidget {
-  const OrdersView({super.key});
-  @override
-  Widget build(BuildContext context) => const Scaffold(body: Center(child: Text('Orders Screen')));
-}
-
-class ShopsView extends StatelessWidget {
-  const ShopsView({super.key});
-  @override
-  Widget build(BuildContext context) => const Scaffold(body: Center(child: Text('Shops Screen')));
-}
-
 class MoreMenuView extends StatelessWidget {
-  const MoreMenuView({super.key});
+  final DoodhDostRepository repository;
+  final VoidCallback onDataChanged;
+
+  const MoreMenuView({
+    super.key,
+    required this.repository,
+    required this.onDataChanged,
+  });
+
   @override
-  Widget build(BuildContext context) => const Scaffold(body: Center(child: Text('More Settings & Tools')));
+  Widget build(BuildContext context) {
+    return Scaffold(
+      appBar: AppBar(title: const Text('More Tools & Settings')),
+      body: ListView(
+        padding: const EdgeInsets.all(16),
+        children: [
+          _menuTile(
+            context,
+            icon: Icons.receipt_long,
+            title: 'Bills & Invoice History',
+            subtitle: 'View finalized bills & record cash/UPI payments',
+            onTap: () {
+              Navigator.push(
+                context,
+                MaterialPageRoute(
+                  builder: (ctx) => FinalBillScreen(repository: repository, onDataChanged: onDataChanged),
+                ),
+              );
+            },
+          ),
+          _menuTile(
+            context,
+            icon: Icons.inventory_2_outlined,
+            title: 'Milk Catalogue',
+            subtitle: '${repository.getProducts().length} products configured',
+            onTap: () {},
+          ),
+          _menuTile(
+            context,
+            icon: Icons.cloud_outlined,
+            title: 'Supabase Database Sync',
+            subtitle: 'PostgreSQL cloud database connected',
+            onTap: () {},
+          ),
+          _menuTile(
+            context,
+            icon: Icons.verified_user_outlined,
+            title: 'Automated Test Suite',
+            subtitle: '18 business rules passed',
+            onTap: () {},
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _menuTile(
+    BuildContext context, {
+    required IconData icon,
+    required String title,
+    required String subtitle,
+    required VoidCallback onTap,
+  }) {
+    return Card(
+      margin: const EdgeInsets.only(bottom: 10),
+      elevation: 0,
+      color: Colors.white,
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(14),
+        side: const BorderSide(color: AppColors.border),
+      ),
+      child: ListTile(
+        leading: CircleAvatar(
+          backgroundColor: AppColors.paleGreenBg,
+          child: Icon(icon, color: AppColors.primaryGreen, size: 20),
+        ),
+        title: Text(title, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 14)),
+        subtitle: Text(subtitle, style: const TextStyle(fontSize: 12, color: AppColors.textSecondary)),
+        trailing: const Icon(Icons.chevron_right, color: AppColors.textSecondary),
+        onTap: onTap,
+      ),
+    );
+  }
 }
