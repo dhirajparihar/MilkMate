@@ -1,0 +1,6 @@
+{
+  "name": "Doodh Dost - Milk Distributor App",
+  "description": "Daily milk distribution, order taking, delivery, returns, stock ledger, billing and payment tracking with Material 3 and friendly cow mascot.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
