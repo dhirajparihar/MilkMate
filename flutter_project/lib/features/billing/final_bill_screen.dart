@@ -91,45 +91,71 @@ class FinalBillScreen extends StatelessWidget {
 
   void _showPaymentDialog(BuildContext context, Invoice invoice) {
     final amountCtrl = TextEditingController(text: invoice.remainingAmount.toStringAsFixed(0));
+    final upiRefCtrl = TextEditingController(text: 'UPI-${DateTime.now().millisecondsSinceEpoch.toString().substring(7)}');
     PaymentMethod method = PaymentMethod.cash;
+    String? errorMessage;
 
     showDialog(
       context: context,
       builder: (ctx) => StatefulBuilder(
         builder: (ctx, setDialogState) => AlertDialog(
           title: Text('Collect Payment: ${invoice.shopName}'),
-          content: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Text('Invoice Total Due: ₹${invoice.remainingAmount.toStringAsFixed(0)}', style: const TextStyle(fontSize: 13, fontWeight: FontWeight.bold)),
-              const SizedBox(height: 12),
-              TextField(
-                controller: amountCtrl,
-                decoration: const InputDecoration(labelText: 'Amount Received (₹)'),
-                keyboardType: TextInputType.number,
-              ),
-              const SizedBox(height: 12),
-              Row(
-                children: [
-                  Expanded(
-                    child: RadioListTile<PaymentMethod>(
-                      title: const Text('Cash'),
-                      value: PaymentMethod.cash,
-                      groupValue: method,
-                      onChanged: (v) => setDialogState(() => method = v!),
-                    ),
+          content: SingleChildScrollView(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  'Invoice Due: ₹${invoice.remainingAmount.toStringAsFixed(2)}',
+                  style: const TextStyle(fontSize: 14, fontWeight: FontWeight.bold, color: AppColors.primaryGreen),
+                ),
+                const SizedBox(height: 12),
+                TextField(
+                  controller: amountCtrl,
+                  decoration: InputDecoration(
+                    labelText: 'Amount Received (₹)',
+                    errorText: errorMessage,
+                    border: const OutlineInputBorder(),
                   ),
-                  Expanded(
-                    child: RadioListTile<PaymentMethod>(
-                      title: const Text('UPI'),
-                      value: PaymentMethod.upi,
-                      groupValue: method,
-                      onChanged: (v) => setDialogState(() => method = v!),
+                  keyboardType: const TextInputType.numberWithOptions(decimal: true),
+                ),
+                const SizedBox(height: 12),
+                const Text('Payment Mode', style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: AppColors.textSecondary)),
+                Row(
+                  children: [
+                    Expanded(
+                      child: RadioListTile<PaymentMethod>(
+                        title: const Text('Cash', style: TextStyle(fontSize: 13)),
+                        value: PaymentMethod.cash,
+                        groupValue: method,
+                        onChanged: (v) => setDialogState(() => method = v!),
+                        contentPadding: EdgeInsets.zero,
+                      ),
+                    ),
+                    Expanded(
+                      child: RadioListTile<PaymentMethod>(
+                        title: const Text('UPI', style: TextStyle(fontSize: 13)),
+                        value: PaymentMethod.upi,
+                        groupValue: method,
+                        onChanged: (v) => setDialogState(() => method = v!),
+                        contentPadding: EdgeInsets.zero,
+                      ),
+                    ),
+                  ],
+                ),
+                if (method == PaymentMethod.upi) ...[
+                  const SizedBox(height: 8),
+                  TextField(
+                    controller: upiRefCtrl,
+                    decoration: const InputDecoration(
+                      labelText: 'UPI Reference / UTR No.',
+                      hintText: 'e.g. UPI-12345678',
+                      border: OutlineInputBorder(),
                     ),
                   ),
                 ],
-              ),
-            ],
+              ],
+            ),
           ),
           actions: [
             TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('Cancel')),
@@ -137,13 +163,31 @@ class FinalBillScreen extends StatelessWidget {
               style: ElevatedButton.styleFrom(backgroundColor: AppColors.primaryGreen, foregroundColor: Colors.white),
               onPressed: () {
                 final amt = double.tryParse(amountCtrl.text) ?? 0.0;
-                if (amt > 0) {
-                  repository.recordPayment(invoice.id, amt, method, method == PaymentMethod.upi ? 'UPI-APP' : null);
+                if (amt <= 0) {
+                  setDialogState(() => errorMessage = 'Enter an amount greater than 0');
+                  return;
+                }
+                if (amt > invoice.remainingAmount + 0.01) {
+                  setDialogState(() => errorMessage = 'Cannot exceed due amount ₹${invoice.remainingAmount.toStringAsFixed(2)}');
+                  return;
+                }
+
+                try {
+                  final ref = method == PaymentMethod.upi ? upiRefCtrl.text.trim() : null;
+                  repository.recordPayment(invoice.id, amt, method, ref);
                   Navigator.pop(ctx);
                   onDataChanged();
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    SnackBar(
+                      content: Text('Payment of ₹${amt.toStringAsFixed(0)} recorded for ${invoice.shopName}'),
+                      backgroundColor: AppColors.primaryGreen,
+                    ),
+                  );
+                } catch (e) {
+                  setDialogState(() => errorMessage = e.toString().replaceFirst('Exception: ', '').replaceFirst('StateError: ', ''));
                 }
               },
-              child: const Text('Confirm'),
+              child: const Text('Confirm Payment'),
             ),
           ],
         ),

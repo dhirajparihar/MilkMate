@@ -26,7 +26,7 @@ class QuantityStepperWidget extends StatelessWidget {
       decoration: BoxDecoration(
         color: AppColors.paleGreenBg,
         borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: AppColors.softGreen.withOpacity(0.6)),
+        border: Border.all(color: AppColors.softGreen.withValues(alpha: 0.6)),
       ),
       child: Row(
         mainAxisSize: MainAxisSize.min,

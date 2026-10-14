@@ -3,7 +3,7 @@ import 'package:doodh_dost/main.dart';
 
 void main() {
   testWidgets('DoodhDostApp smoke test', (WidgetTester tester) async {
-    await tester.pumpWidget(const DoodhDostApp());
+    await tester.pumpWidget(DoodhDostApp());
     expect(find.text('Doodh Dost'), findsWidgets);
     expect(find.text('Home'), findsOneWidget);
     expect(find.text('Orders'), findsOneWidget);

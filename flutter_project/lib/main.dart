@@ -7,14 +7,22 @@ import 'features/orders/orders_screen.dart';
 import 'features/orders/create_order_screen.dart';
 import 'features/shops/shops_screen.dart';
 import 'features/billing/final_bill_screen.dart';
+import 'core/services/supabase_service.dart';
+import 'features/sync/supabase_sync_screen.dart';
 
-void main() {
+void main() async {
   WidgetsFlutterBinding.ensureInitialized();
-  runApp(const DoodhDostApp());
+  final repository = DoodhDostRepository();
+  await repository.loadFromStorage();
+  await SupabaseService.instance.init();
+  runApp(DoodhDostApp(repository: repository));
 }
 
 class DoodhDostApp extends StatelessWidget {
-  const DoodhDostApp({super.key});
+  final DoodhDostRepository repository;
+
+  DoodhDostApp({super.key, DoodhDostRepository? repository})
+      : repository = repository ?? DoodhDostRepository();
 
   @override
   Widget build(BuildContext context) {
@@ -42,13 +50,15 @@ class DoodhDostApp extends StatelessWidget {
           ),
         ),
       ),
-      home: const MainNavigationShell(),
+      home: MainNavigationShell(repository: repository),
     );
   }
 }
 
 class MainNavigationShell extends StatefulWidget {
-  const MainNavigationShell({super.key});
+  final DoodhDostRepository repository;
+
+  const MainNavigationShell({super.key, required this.repository});
 
   @override
   State<MainNavigationShell> createState() => _MainNavigationShellState();
@@ -56,7 +66,13 @@ class MainNavigationShell extends StatefulWidget {
 
 class _MainNavigationShellState extends State<MainNavigationShell> {
   int _currentIndex = 0;
-  final DoodhDostRepository _repository = DoodhDostRepository();
+  late final DoodhDostRepository _repository;
+
+  @override
+  void initState() {
+    super.initState();
+    _repository = widget.repository;
+  }
 
   void _refresh() {
     setState(() {});
@@ -451,10 +467,17 @@ class MoreMenuView extends StatelessWidget {
           ),
           _menuTile(
             context,
-            icon: Icons.cloud_outlined,
-            title: 'Supabase Database Sync',
-            subtitle: 'PostgreSQL cloud database connected',
-            onTap: () {},
+            icon: Icons.cloud_done_outlined,
+            title: 'Cloud Backup & Sync',
+            subtitle: 'Automated ledger backup active',
+            onTap: () {
+              Navigator.push(
+                context,
+                MaterialPageRoute(
+                  builder: (ctx) => SupabaseSyncScreen(repository: repository),
+                ),
+              );
+            },
           ),
           _menuTile(
             context,

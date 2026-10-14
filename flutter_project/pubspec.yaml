@@ -21,7 +21,7 @@ dependencies:
   go_router: ^14.0.1
 
   # Backend & Supabase
-  supabase_flutter: ^2.5.6
+  supabase_flutter: ^2.18.3
 
   # Local Persistence & Offline Caching
   drift: ^2.16.0
@@ -35,7 +35,8 @@ dependencies:
   intl: ^0.20.2
   lucide_icons: ^0.257.0
   flutter_svg: ^2.0.10+1
-  uuid: ^4.4.0
+  uuid: ^4.6.0
+  crypto: ^3.0.7
 
 dev_dependencies:
   flutter_test:

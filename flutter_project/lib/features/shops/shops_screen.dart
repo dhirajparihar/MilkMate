@@ -70,7 +70,7 @@ class _ShopsScreenState extends State<ShopsScreen> {
                 ? const Center(
                     child: Column(
                       mainAxisAlignment: MainAxisAlignment.center,
-                      children: const [
+                      children: [
                         CowMascotWidget(size: 80, mood: CowMood.happy, showMilkPacket: false),
                         SizedBox(height: 16),
                         Text(

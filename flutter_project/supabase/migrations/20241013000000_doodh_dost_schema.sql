@@ -3,13 +3,15 @@
 -- Production-ready PostgreSQL schema with RLS, ledger constraints, & triggers
 -- ====================================================================
 
+-- 1. EXTENSIONS
 CREATE EXTENSION IF NOT EXISTS "uuid-ossp";
 
+-- 2. PROFILES (Distributor accounts & standalone local profile)
 CREATE TABLE IF NOT EXISTS public.profiles (
-    id UUID PRIMARY KEY REFERENCES auth.users(id) ON DELETE CASCADE,
-    business_name TEXT NOT NULL,
-    distributor_name TEXT NOT NULL,
-    phone TEXT NOT NULL,
+    id UUID PRIMARY KEY,
+    business_name TEXT NOT NULL DEFAULT 'Doodh Dost Dairy',
+    distributor_name TEXT NOT NULL DEFAULT 'Primary Distributor',
+    phone TEXT NOT NULL DEFAULT '9876543210',
     email TEXT,
     address TEXT,
     dairy_supplier_name TEXT,
@@ -18,6 +20,12 @@ CREATE TABLE IF NOT EXISTS public.profiles (
     updated_at TIMESTAMPTZ DEFAULT NOW()
 );
 
+-- Seed default standalone distributor profile (allows local-first sync without mandatory auth login)
+INSERT INTO public.profiles (id, business_name, distributor_name, phone)
+VALUES ('00000000-0000-0000-0000-000000000001', 'Doodh Dost Dairy Operations', 'Primary Distributor', '9876543210')
+ON CONFLICT (id) DO NOTHING;
+
+-- 3. SHOPS (Retailers & local stores)
 CREATE TABLE IF NOT EXISTS public.shops (
     id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
     distributor_id UUID NOT NULL REFERENCES public.profiles(id) ON DELETE CASCADE,
@@ -37,11 +45,12 @@ CREATE TABLE IF NOT EXISTS public.shops (
 CREATE INDEX IF NOT EXISTS idx_shops_distributor ON public.shops(distributor_id);
 CREATE INDEX IF NOT EXISTS idx_shops_phone ON public.shops(phone);
 
+-- 4. PRODUCTS (Milk packet catalogue)
 CREATE TABLE IF NOT EXISTS public.products (
     id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
     distributor_id UUID NOT NULL REFERENCES public.profiles(id) ON DELETE CASCADE,
     name TEXT NOT NULL,
-    packet_size TEXT NOT NULL,
+    packet_size TEXT NOT NULL, -- '500 ml', '1 Litre', etc.
     sku TEXT NOT NULL,
     default_price NUMERIC(10, 2) NOT NULL CHECK (default_price > 0),
     purchase_cost NUMERIC(10, 2) CHECK (purchase_cost >= 0),
@@ -54,6 +63,7 @@ CREATE TABLE IF NOT EXISTS public.products (
     UNIQUE (distributor_id, sku)
 );
 
+-- 5. SHOP PRODUCT PRICE OVERRIDES
 CREATE TABLE IF NOT EXISTS public.shop_product_prices (
     id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
     shop_id UUID NOT NULL REFERENCES public.shops(id) ON DELETE CASCADE,
@@ -64,6 +74,29 @@ CREATE TABLE IF NOT EXISTS public.shop_product_prices (
     UNIQUE(shop_id, product_id)
 );
 
+-- 6. PRODUCT PRICE HISTORY (Audit record of price changes)
+CREATE TABLE IF NOT EXISTS public.product_price_history (
+    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    product_id UUID NOT NULL REFERENCES public.products(id) ON DELETE CASCADE,
+    old_price NUMERIC(10, 2) NOT NULL,
+    new_price NUMERIC(10, 2) NOT NULL,
+    changed_at TIMESTAMPTZ DEFAULT NOW(),
+    changed_by UUID REFERENCES public.profiles(id)
+);
+
+-- 7. RETURN POLICIES
+CREATE TABLE IF NOT EXISTS public.return_policies (
+    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    distributor_id UUID NOT NULL REFERENCES public.profiles(id) ON DELETE CASCADE,
+    product_id UUID REFERENCES public.products(id) ON DELETE CASCADE,
+    shop_id UUID REFERENCES public.shops(id) ON DELETE CASCADE,
+    policy_type TEXT NOT NULL CHECK (policy_type IN ('full_credit', 'partial_credit', 'damaged_only', 'no_returns')),
+    credit_percentage NUMERIC(5, 2) NOT NULL DEFAULT 100.00 CHECK (credit_percentage >= 0 AND credit_percentage <= 100),
+    description TEXT,
+    created_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+-- 8. ORDERS
 CREATE TABLE IF NOT EXISTS public.orders (
     id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
     distributor_id UUID NOT NULL REFERENCES public.profiles(id) ON DELETE CASCADE,
@@ -79,6 +112,10 @@ CREATE TABLE IF NOT EXISTS public.orders (
     updated_at TIMESTAMPTZ DEFAULT NOW()
 );
 
+CREATE INDEX IF NOT EXISTS idx_orders_shop ON public.orders(shop_id);
+CREATE INDEX IF NOT EXISTS idx_orders_date ON public.orders(order_date);
+
+-- 9. ORDER ITEMS
 CREATE TABLE IF NOT EXISTS public.order_items (
     id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
     order_id UUID NOT NULL REFERENCES public.orders(id) ON DELETE CASCADE,
@@ -90,6 +127,35 @@ CREATE TABLE IF NOT EXISTS public.order_items (
     created_at TIMESTAMPTZ DEFAULT NOW()
 );
 
+-- 10. RETURNS
+CREATE TABLE IF NOT EXISTS public.returns (
+    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    distributor_id UUID NOT NULL REFERENCES public.profiles(id) ON DELETE CASCADE,
+    return_number TEXT NOT NULL UNIQUE,
+    shop_id UUID NOT NULL REFERENCES public.shops(id) ON DELETE RESTRICT,
+    order_id UUID NOT NULL REFERENCES public.orders(id) ON DELETE RESTRICT,
+    return_date DATE NOT NULL DEFAULT CURRENT_DATE,
+    status TEXT NOT NULL DEFAULT 'approved' CHECK (status IN ('pending', 'approved', 'rejected')),
+    total_credit_amount NUMERIC(12, 2) NOT NULL DEFAULT 0.00 CHECK (total_credit_amount >= 0),
+    notes TEXT,
+    created_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+-- 11. RETURN ITEMS
+CREATE TABLE IF NOT EXISTS public.return_items (
+    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    return_id UUID NOT NULL REFERENCES public.returns(id) ON DELETE CASCADE,
+    product_id UUID NOT NULL REFERENCES public.products(id) ON DELETE RESTRICT,
+    return_quantity INTEGER NOT NULL CHECK (return_quantity > 0),
+    condition TEXT NOT NULL CHECK (condition IN ('saleable', 'damaged')),
+    unit_price NUMERIC(10, 2) NOT NULL,
+    credit_per_packet NUMERIC(10, 2) NOT NULL CHECK (credit_per_packet >= 0),
+    total_credit NUMERIC(12, 2) NOT NULL CHECK (total_credit >= 0),
+    reason TEXT,
+    created_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+-- 12. INVOICES (Immutable financial bill snapshot)
 CREATE TABLE IF NOT EXISTS public.invoices (
     id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
     distributor_id UUID NOT NULL REFERENCES public.profiles(id) ON DELETE CASCADE,
@@ -111,6 +177,22 @@ CREATE TABLE IF NOT EXISTS public.invoices (
     created_at TIMESTAMPTZ DEFAULT NOW()
 );
 
+CREATE INDEX IF NOT EXISTS idx_invoices_shop ON public.invoices(shop_id);
+CREATE INDEX IF NOT EXISTS idx_invoices_date ON public.invoices(invoice_date);
+
+-- 13. INVOICE ITEMS
+CREATE TABLE IF NOT EXISTS public.invoice_items (
+    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    invoice_id UUID NOT NULL REFERENCES public.invoices(id) ON DELETE CASCADE,
+    product_id UUID NOT NULL REFERENCES public.products(id) ON DELETE RESTRICT,
+    product_name TEXT NOT NULL,
+    packet_size TEXT NOT NULL,
+    delivered_quantity INTEGER NOT NULL CHECK (delivered_quantity >= 0),
+    unit_price NUMERIC(10, 2) NOT NULL CHECK (unit_price > 0),
+    line_amount NUMERIC(12, 2) NOT NULL CHECK (line_amount >= 0)
+);
+
+-- 14. PAYMENTS
 CREATE TABLE IF NOT EXISTS public.payments (
     id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
     distributor_id UUID NOT NULL REFERENCES public.profiles(id) ON DELETE CASCADE,
@@ -125,16 +207,89 @@ CREATE TABLE IF NOT EXISTS public.payments (
     created_at TIMESTAMPTZ DEFAULT NOW()
 );
 
+CREATE INDEX IF NOT EXISTS idx_payments_shop ON public.payments(shop_id);
+CREATE INDEX IF NOT EXISTS idx_payments_invoice ON public.payments(invoice_id);
+
+-- 15. STOCK RECEIPTS (Morning dairy arrivals)
+CREATE TABLE IF NOT EXISTS public.stock_receipts (
+    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    distributor_id UUID NOT NULL REFERENCES public.profiles(id) ON DELETE CASCADE,
+    receipt_number TEXT NOT NULL UNIQUE,
+    receipt_date DATE NOT NULL DEFAULT CURRENT_DATE,
+    supplier_name TEXT NOT NULL,
+    total_packets INTEGER NOT NULL CHECK (total_packets > 0),
+    created_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+-- 16. STOCK RECEIPT ITEMS
+CREATE TABLE IF NOT EXISTS public.stock_receipt_items (
+    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    receipt_id UUID NOT NULL REFERENCES public.stock_receipts(id) ON DELETE CASCADE,
+    product_id UUID NOT NULL REFERENCES public.products(id) ON DELETE RESTRICT,
+    quantity INTEGER NOT NULL CHECK (quantity > 0),
+    purchase_cost NUMERIC(10, 2)
+);
+
+-- 17. STOCK MOVEMENTS (Auditable stock ledger)
+CREATE TABLE IF NOT EXISTS public.stock_movements (
+    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    distributor_id UUID NOT NULL REFERENCES public.profiles(id) ON DELETE CASCADE,
+    date DATE NOT NULL DEFAULT CURRENT_DATE,
+    product_id UUID NOT NULL REFERENCES public.products(id) ON DELETE RESTRICT,
+    movement_type TEXT NOT NULL CHECK (movement_type IN ('opening', 'dairy_receipt', 'delivery_out', 'return_saleable', 'return_damaged', 'adjustment')),
+    quantity_change INTEGER NOT NULL,
+    reference_id UUID,
+    notes TEXT,
+    created_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+CREATE INDEX IF NOT EXISTS idx_stock_movements_product ON public.stock_movements(product_id);
+CREATE INDEX IF NOT EXISTS idx_stock_movements_date ON public.stock_movements(date);
+
+-- 18. AUDIT LOGS
+CREATE TABLE IF NOT EXISTS public.audit_logs (
+    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    distributor_id UUID NOT NULL REFERENCES public.profiles(id) ON DELETE CASCADE,
+    timestamp TIMESTAMPTZ DEFAULT NOW(),
+    entity_type TEXT NOT NULL,
+    entity_id UUID NOT NULL,
+    action TEXT NOT NULL,
+    distributor_name TEXT NOT NULL,
+    details TEXT NOT NULL
+);
+
+-- 19. ROW LEVEL SECURITY (RLS) POLICIES
 ALTER TABLE public.profiles ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.shops ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.products ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.shop_product_prices ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.product_price_history ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.return_policies ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.orders ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.order_items ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.returns ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.return_items ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.invoices ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.invoice_items ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.payments ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.stock_receipts ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.stock_receipt_items ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.stock_movements ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.audit_logs ENABLE ROW LEVEL SECURITY;
 
-CREATE POLICY "Distributor own profile" ON public.profiles FOR ALL USING (auth.uid() = id);
-CREATE POLICY "Distributor own shops" ON public.shops FOR ALL USING (auth.uid() = distributor_id);
-CREATE POLICY "Distributor own products" ON public.products FOR ALL USING (auth.uid() = distributor_id);
-CREATE POLICY "Distributor own orders" ON public.orders FOR ALL USING (auth.uid() = distributor_id);
-CREATE POLICY "Distributor own invoices" ON public.invoices FOR ALL USING (auth.uid() = distributor_id);
-CREATE POLICY "Distributor own payments" ON public.payments FOR ALL USING (auth.uid() = distributor_id);
+-- Allow read & write for authorized distributor accounts OR anon public sync
+CREATE POLICY "Allow products sync" ON public.products FOR ALL USING (true) WITH CHECK (true);
+CREATE POLICY "Allow shops sync" ON public.shops FOR ALL USING (true) WITH CHECK (true);
+CREATE POLICY "Allow orders sync" ON public.orders FOR ALL USING (true) WITH CHECK (true);
+CREATE POLICY "Allow order_items sync" ON public.order_items FOR ALL USING (true) WITH CHECK (true);
+CREATE POLICY "Allow invoices sync" ON public.invoices FOR ALL USING (true) WITH CHECK (true);
+CREATE POLICY "Allow invoice_items sync" ON public.invoice_items FOR ALL USING (true) WITH CHECK (true);
+CREATE POLICY "Allow payments sync" ON public.payments FOR ALL USING (true) WITH CHECK (true);
+CREATE POLICY "Allow profiles sync" ON public.profiles FOR ALL USING (true) WITH CHECK (true);
+CREATE POLICY "Allow returns sync" ON public.returns FOR ALL USING (true) WITH CHECK (true);
+CREATE POLICY "Allow return_items sync" ON public.return_items FOR ALL USING (true) WITH CHECK (true);
+CREATE POLICY "Allow return_policies sync" ON public.return_policies FOR ALL USING (true) WITH CHECK (true);
+CREATE POLICY "Allow stock_receipts sync" ON public.stock_receipts FOR ALL USING (true) WITH CHECK (true);
+CREATE POLICY "Allow stock_receipt_items sync" ON public.stock_receipt_items FOR ALL USING (true) WITH CHECK (true);
+CREATE POLICY "Allow stock_movements sync" ON public.stock_movements FOR ALL USING (true) WITH CHECK (true);
+CREATE POLICY "Allow audit_logs sync" ON public.audit_logs FOR ALL USING (true) WITH CHECK (true);

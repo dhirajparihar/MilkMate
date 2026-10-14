@@ -74,7 +74,7 @@ class _OrdersScreenState extends State<OrdersScreen> {
                 ? const Center(
                     child: Column(
                       mainAxisAlignment: MainAxisAlignment.center,
-                      children: const [
+                      children: [
                         CowMascotWidget(size: 80, mood: CowMood.happy, showMilkPacket: true),
                         SizedBox(height: 16),
                         Text(
@@ -211,15 +211,8 @@ class _OrderCard extends StatelessWidget {
                     shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
                   ),
                   icon: const Icon(Icons.check_circle_outline, size: 18),
-                  label: const Text('Mark Delivered'),
-                  onPressed: () {
-                    repository.updateDeliveryQuantities(
-                      order.id,
-                      OrderStatus.delivered,
-                      {for (var item in order.items) item.productId: item.deliveredQuantity},
-                    );
-                    onUpdated();
-                  },
+                  label: const Text('Confirm Delivery Quantities'),
+                  onPressed: () => _showDeliveryDialog(context),
                 ),
               )
             else if (order.status == OrderStatus.delivered && !order.isBilled)
@@ -233,11 +226,8 @@ class _OrderCard extends StatelessWidget {
                     shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
                   ),
                   icon: const Icon(Icons.receipt_long, size: 18),
-                  label: const Text('Finalize Bill'),
-                  onPressed: () {
-                    repository.finalizeBill(order.id, 0.0, 0.0, 0.0);
-                    onUpdated();
-                  },
+                  label: const Text('Finalize Bill & Invoicing'),
+                  onPressed: () => _showFinalizeBillDialog(context),
                 ),
               )
             else if (order.status == OrderStatus.billed)
@@ -252,6 +242,171 @@ class _OrderCard extends StatelessWidget {
               ),
           ],
         ),
+      ),
+    );
+  }
+
+  void _showDeliveryDialog(BuildContext context) {
+    final qtyControllers = {
+      for (var item in order.items)
+        item.productId: TextEditingController(
+          text: (item.deliveredQuantity > 0 ? item.deliveredQuantity : item.orderedQuantity).toString(),
+        ),
+    };
+
+    showDialog(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: Text('Confirm Delivery: ${order.shopName}'),
+        content: SingleChildScrollView(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              const Text(
+                'Enter actual packets delivered to the shop:',
+                style: TextStyle(fontSize: 12, color: AppColors.textSecondary),
+              ),
+              const SizedBox(height: 12),
+              ...order.items.map((item) {
+                return Padding(
+                  padding: const EdgeInsets.only(bottom: 12),
+                  child: Row(
+                    children: [
+                      Expanded(
+                        flex: 2,
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(item.productName, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13)),
+                            Text('Ordered: ${item.orderedQuantity} pkts', style: const TextStyle(fontSize: 11, color: AppColors.textSecondary)),
+                          ],
+                        ),
+                      ),
+                      const SizedBox(width: 8),
+                      Expanded(
+                        flex: 1,
+                        child: TextField(
+                          controller: qtyControllers[item.productId],
+                          keyboardType: TextInputType.number,
+                          decoration: const InputDecoration(
+                            labelText: 'Delivered',
+                            contentPadding: EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                );
+              }),
+            ],
+          ),
+        ),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('Cancel')),
+          ElevatedButton(
+            style: ElevatedButton.styleFrom(backgroundColor: AppColors.primaryGreen, foregroundColor: Colors.white),
+            onPressed: () {
+              final deliveryMap = <String, int>{};
+              for (var item in order.items) {
+                final parsed = int.tryParse(qtyControllers[item.productId]?.text ?? '') ?? item.orderedQuantity;
+                deliveryMap[item.productId] = parsed < 0 ? 0 : parsed;
+              }
+              repository.updateDeliveryQuantities(order.id, OrderStatus.delivered, deliveryMap);
+              Navigator.pop(ctx);
+              onUpdated();
+            },
+            child: const Text('Save & Mark Delivered'),
+          ),
+        ],
+      ),
+    );
+  }
+
+  void _showFinalizeBillDialog(BuildContext context) {
+    final returns = repository.getReturns().where((r) => r.orderId == order.id).toList();
+    final returnCredits = returns.fold<double>(0.0, (sum, r) => sum + r.totalCredit);
+    final deliveredValue = order.items.fold<double>(0.0, (sum, i) => sum + (i.deliveredQuantity * i.unitPrice));
+    final shop = repository.getShops().firstWhere((s) => s.id == order.shopId, orElse: () => repository.getShops().first);
+
+    final chargesCtrl = TextEditingController(text: '0');
+    final discountCtrl = TextEditingController(text: '0');
+
+    showDialog(
+      context: context,
+      builder: (ctx) => StatefulBuilder(
+        builder: (ctx, setDialogState) {
+          final otherCharges = double.tryParse(chargesCtrl.text) ?? 0.0;
+          final discount = double.tryParse(discountCtrl.text) ?? 0.0;
+          final netAmount = (deliveredValue - returnCredits + otherCharges - discount).clamp(0.0, double.infinity);
+          final totalWithPrev = shop.currentBalance + netAmount;
+
+          return AlertDialog(
+            title: Text('Finalize Bill: ${order.shopName}'),
+            content: SingleChildScrollView(
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  _billRow('Delivered Value:', '₹${deliveredValue.toStringAsFixed(2)}', isBold: true),
+                  if (returnCredits > 0)
+                    _billRow('Return Credits:', '-₹${returnCredits.toStringAsFixed(2)}', color: Colors.red),
+                  const Divider(),
+                  TextField(
+                    controller: chargesCtrl,
+                    keyboardType: TextInputType.number,
+                    decoration: const InputDecoration(labelText: 'Other Charges / Crates (₹)'),
+                    onChanged: (_) => setDialogState(() {}),
+                  ),
+                  TextField(
+                    controller: discountCtrl,
+                    keyboardType: TextInputType.number,
+                    decoration: const InputDecoration(labelText: 'Discount / Scheme (₹)'),
+                    onChanged: (_) => setDialogState(() {}),
+                  ),
+                  const Divider(height: 24),
+                  _billRow('Today Net Bill:', '₹${netAmount.toStringAsFixed(2)}', isBold: true, color: AppColors.primaryGreen),
+                  _billRow('Previous Balance:', '₹${shop.currentBalance.toStringAsFixed(2)}'),
+                  _billRow('Total Due with Balance:', '₹${totalWithPrev.toStringAsFixed(2)}', isBold: true, color: const Color(0xFF8C5D19)),
+                ],
+              ),
+            ),
+            actions: [
+              TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('Cancel')),
+              ElevatedButton(
+                style: ElevatedButton.styleFrom(backgroundColor: AppColors.primaryGreen, foregroundColor: Colors.white),
+                onPressed: () {
+                  final charges = double.tryParse(chargesCtrl.text) ?? 0.0;
+                  final disc = double.tryParse(discountCtrl.text) ?? 0.0;
+                  repository.finalizeBill(order.id, returnCredits, charges, disc);
+                  Navigator.pop(ctx);
+                  onUpdated();
+                },
+                child: const Text('Generate Invoice'),
+              ),
+            ],
+          );
+        },
+      ),
+    );
+  }
+
+  Widget _billRow(String label, String value, {bool isBold = false, Color? color}) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 3),
+      child: Row(
+        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+        children: [
+          Text(label, style: TextStyle(fontSize: 13, fontWeight: isBold ? FontWeight.bold : FontWeight.normal)),
+          Text(
+            value,
+            style: TextStyle(
+              fontSize: 13,
+              fontWeight: isBold ? FontWeight.bold : FontWeight.normal,
+              color: color ?? AppColors.textMain,
+            ),
+          ),
+        ],
       ),
     );
   }

@@ -28,13 +28,10 @@ class _CreateOrderScreenState extends State<CreateOrderScreen> {
     final shops = widget.repository.getShops();
     _selectedShopId = widget.preselectedShopId ?? (shops.isNotEmpty ? shops.first.id : '');
 
-    // Default quantities for top 2 products
+    // Production rule: All product order quantities initialize clean at 0
     final products = widget.repository.getProducts();
-    if (products.isNotEmpty) {
-      _quantities[products[0].id] = 30;
-    }
-    if (products.length > 1) {
-      _quantities[products[1].id] = 20;
+    for (var prod in products) {
+      _quantities[prod.id] = 0;
     }
   }
 
@@ -54,6 +51,18 @@ class _CreateOrderScreenState extends State<CreateOrderScreen> {
     return Scaffold(
       appBar: AppBar(
         title: const Text('New Daily Order'),
+        actions: [
+          IconButton(
+            icon: const Icon(Icons.flash_on_outlined, color: AppColors.primaryGreen),
+            tooltip: 'Prefill Demo Template (30/20 pkts)',
+            onPressed: () {
+              setState(() {
+                if (products.isNotEmpty) _quantities[products[0].id] = 30;
+                if (products.length > 1) _quantities[products[1].id] = 20;
+              });
+            },
+          ),
+        ],
       ),
       body: SingleChildScrollView(
         padding: const EdgeInsets.all(16),
@@ -141,7 +150,7 @@ class _CreateOrderScreenState extends State<CreateOrderScreen> {
         decoration: BoxDecoration(
           color: Colors.white,
           boxShadow: [
-            BoxShadow(color: Colors.black.withOpacity(0.05), blurRadius: 10, offset: const Offset(0, -4)),
+            BoxShadow(color: Colors.black.withValues(alpha: 0.05), blurRadius: 10, offset: const Offset(0, -4)),
           ],
         ),
         child: SafeArea(
@@ -178,7 +187,7 @@ class _CreateOrderScreenState extends State<CreateOrderScreen> {
                               productName: prod.name,
                               packetSize: prod.packetSize,
                               orderedQuantity: qty,
-                              deliveredQuantity: qty,
+                              deliveredQuantity: 0,
                               unitPrice: price,
                             ));
                           }
