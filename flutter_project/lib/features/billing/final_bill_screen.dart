@@ -46,7 +46,7 @@ class FinalBillScreen extends StatelessWidget {
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
                         Row(
-                          mainAxisAlignment: MainAxisAlignment.between,
+                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
                           children: [
                             Text(inv.shopName, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
                             Text('₹${inv.netAmount.toStringAsFixed(0)}', style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16, color: AppColors.primaryGreen)),
@@ -56,7 +56,7 @@ class FinalBillScreen extends StatelessWidget {
                         Text('${inv.invoiceNumber} · ${inv.invoiceDate.toString().split(' ')[0]}', style: const TextStyle(fontSize: 12, color: AppColors.textSecondary)),
                         const Divider(height: 20),
                         Row(
-                          mainAxisAlignment: MainAxisAlignment.between,
+                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
                           children: [
                             Text('Paid: ₹${inv.paidAmount.toStringAsFixed(0)}', style: const TextStyle(fontSize: 13, color: AppColors.textSecondary)),
                             Text('Due: ₹${inv.remainingAmount.toStringAsFixed(0)}', style: TextStyle(fontSize: 13, fontWeight: FontWeight.bold, color: inv.remainingAmount > 0 ? const Color(0xFF8C5D19) : AppColors.primaryGreen)),

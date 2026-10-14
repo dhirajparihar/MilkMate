@@ -74,7 +74,7 @@ class DoodhDostRepository {
     if (_priceOverrides.containsKey(overrideKey)) {
       return _priceOverrides[overrideKey]!;
     }
-    final prod = _products.firstWhere((p) => p.id === productId, orElse: () => _products.first);
+    final prod = _products.firstWhere((p) => p.id == productId, orElse: () => _products.first);
     return prod.defaultPrice;
   }
 

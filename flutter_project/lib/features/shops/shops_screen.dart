@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import '../../core/theme/app_colors.dart';
-import '../../shared/models/models.dart';
 import '../../shared/repositories/doodh_dost_repository.dart';
+import '../../core/widgets/cow_mascot.dart';
 import '../orders/create_order_screen.dart';
 
 class ShopsScreen extends StatefulWidget {
@@ -66,10 +66,29 @@ class _ShopsScreenState extends State<ShopsScreen> {
           ),
           // Shops list
           Expanded(
-            child: ListView.builder(
-              padding: const EdgeInsets.symmetric(horizontal: 16),
-              itemCount: shops.length,
-              itemBuilder: (context, index) {
+            child: shops.isEmpty
+                ? const Center(
+                    child: Column(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: const [
+                        CowMascotWidget(size: 80, mood: CowMood.happy, showMilkPacket: false),
+                        SizedBox(height: 16),
+                        Text(
+                          'No shops found',
+                          style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16, color: AppColors.textMain),
+                        ),
+                        SizedBox(height: 4),
+                        Text(
+                          'Tap + in the top bar to add a new dairy/retail customer',
+                          style: TextStyle(fontSize: 12, color: AppColors.textSecondary),
+                        ),
+                      ],
+                    ),
+                  )
+                : ListView.builder(
+                    padding: const EdgeInsets.symmetric(horizontal: 16),
+                    itemCount: shops.length,
+                    itemBuilder: (context, index) {
                 final shop = shops[index];
                 return Card(
                   margin: const EdgeInsets.only(bottom: 12),
@@ -82,7 +101,7 @@ class _ShopsScreenState extends State<ShopsScreen> {
                   child: Padding(
                     padding: const EdgeInsets.all(16),
                     child: Row(
-                      mainAxisAlignment: MainAxisAlignment.between,
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
                       children: [
                         Expanded(
                           child: Column(

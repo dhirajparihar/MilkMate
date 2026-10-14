@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import '../../core/theme/app_colors.dart';
 import '../../shared/models/models.dart';
 import '../../shared/repositories/doodh_dost_repository.dart';
+import '../../core/widgets/cow_mascot.dart';
 import 'create_order_screen.dart';
 
 class OrdersScreen extends StatefulWidget {
@@ -71,7 +72,22 @@ class _OrdersScreenState extends State<OrdersScreen> {
           Expanded(
             child: orders.isEmpty
                 ? const Center(
-                    child: Text('No orders in this status', style: TextStyle(color: AppColors.textSecondary)),
+                    child: Column(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: const [
+                        CowMascotWidget(size: 80, mood: CowMood.happy, showMilkPacket: true),
+                        SizedBox(height: 16),
+                        Text(
+                          'No orders in this status',
+                          style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16, color: AppColors.textMain),
+                        ),
+                        SizedBox(height: 4),
+                        Text(
+                          'Tap "+ New Order" below to schedule morning delivery',
+                          style: TextStyle(fontSize: 12, color: AppColors.textSecondary),
+                        ),
+                      ],
+                    ),
                   )
                 : ListView.builder(
                     padding: const EdgeInsets.all(16),
@@ -152,7 +168,7 @@ class _OrderCard extends StatelessWidget {
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             Row(
-              mainAxisAlignment: MainAxisAlignment.between,
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
                 Expanded(
                   child: Text(
@@ -176,7 +192,7 @@ class _OrderCard extends StatelessWidget {
             ...order.items.map((item) => Padding(
                   padding: const EdgeInsets.symmetric(vertical: 2),
                   child: Row(
-                    mainAxisAlignment: MainAxisAlignment.between,
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
                     children: [
                       Text('${item.productName} (${item.packetSize})', style: const TextStyle(fontSize: 13)),
                       Text('${item.deliveredQuantity} / ${item.orderedQuantity} pkts', style: const TextStyle(fontSize: 13, fontWeight: FontWeight.bold)),

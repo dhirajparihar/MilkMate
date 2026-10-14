@@ -139,10 +139,53 @@ class DashboardView extends StatelessWidget {
     return Scaffold(
       appBar: AppBar(
         title: Row(
-          children: const [
-            Text('Doodh Dost', style: TextStyle(fontWeight: FontWeight.bold)),
-            SizedBox(width: 6),
-            Text('दूध दोस्त', style: TextStyle(fontSize: 12, color: AppColors.primaryGreen)),
+          children: [
+            const CowMascotWidget(size: 36, showMilkPacket: false),
+            const SizedBox(width: 10),
+            Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Row(
+                  children: [
+                    const Text(
+                      'Doodh Dost',
+                      style: TextStyle(
+                        fontWeight: FontWeight.w900,
+                        fontSize: 16,
+                        letterSpacing: -0.3,
+                      ),
+                    ),
+                    const SizedBox(width: 6),
+                    Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                      decoration: BoxDecoration(
+                        color: AppColors.softGreen,
+                        borderRadius: BorderRadius.circular(6),
+                        border: Border.all(color: const Color(0xFFB9E6C8)),
+                      ),
+                      child: const Text(
+                        'दूध दोस्त',
+                        style: TextStyle(
+                          fontSize: 10,
+                          color: AppColors.primaryGreen,
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 1),
+                const Text(
+                  'Your daily milk business, made simple.',
+                  style: TextStyle(
+                    fontSize: 10,
+                    color: AppColors.textSecondary,
+                    fontWeight: FontWeight.normal,
+                  ),
+                ),
+              ],
+            ),
           ],
         ),
       ),
@@ -157,7 +200,7 @@ class DashboardView extends StatelessWidget {
               decoration: BoxDecoration(
                 color: AppColors.paleGreenBg,
                 borderRadius: BorderRadius.circular(20),
-                border: Border.all(color: AppColors.softGreen.withOpacity(0.7)),
+                border: Border.all(color: AppColors.softGreen.withValues(alpha: 0.7)),
               ),
               child: Row(
                 children: [
@@ -236,7 +279,7 @@ class DashboardView extends StatelessWidget {
                 border: Border.all(color: const Color(0xFFFFE1B3)),
               ),
               child: Row(
-                mainAxisAlignment: MainAxisAlignment.between,
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
                   Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
@@ -318,6 +361,73 @@ class MoreMenuView extends StatelessWidget {
       body: ListView(
         padding: const EdgeInsets.all(16),
         children: [
+          // Brand Header Card with Mascot Logo
+          Container(
+            margin: const EdgeInsets.only(bottom: 16),
+            padding: const EdgeInsets.all(18),
+            decoration: BoxDecoration(
+              gradient: const LinearGradient(
+                colors: [Color(0xFFF1F8F3), Color(0xFFE3F2E8)],
+                begin: Alignment.topLeft,
+                end: Alignment.bottomRight,
+              ),
+              borderRadius: BorderRadius.circular(20),
+              border: Border.all(color: const Color(0xFFB9E6C8)),
+            ),
+            child: Row(
+              children: [
+                const CowMascotWidget(size: 64, mood: CowMood.delivery, showMilkPacket: true),
+                const SizedBox(width: 16),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Row(
+                        children: [
+                          const Text(
+                            'Doodh Dost',
+                            style: TextStyle(
+                              fontSize: 18,
+                              fontWeight: FontWeight.w900,
+                              color: AppColors.textMain,
+                              letterSpacing: -0.4,
+                            ),
+                          ),
+                          const SizedBox(width: 6),
+                          Container(
+                            padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                            decoration: BoxDecoration(
+                              color: Colors.white,
+                              borderRadius: BorderRadius.circular(6),
+                              border: Border.all(color: const Color(0xFFB9E6C8)),
+                            ),
+                            child: const Text(
+                              'दूध दोस्त',
+                              style: TextStyle(
+                                fontSize: 10,
+                                color: AppColors.primaryGreen,
+                                fontWeight: FontWeight.bold,
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 3),
+                      const Text(
+                        'Milk Distributor Operations',
+                        style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: AppColors.primaryGreen),
+                      ),
+                      const SizedBox(height: 2),
+                      const Text(
+                        'Version 1.0.0 • Offline SQLite Active',
+                        style: TextStyle(fontSize: 11, color: AppColors.textSecondary),
+                      ),
+                    ],
+                  ),
+                ),
+              ],
+            ),
+          ),
           _menuTile(
             context,
             icon: Icons.receipt_long,
@@ -352,6 +462,20 @@ class MoreMenuView extends StatelessWidget {
             title: 'Automated Test Suite',
             subtitle: '18 business rules passed',
             onTap: () {},
+          ),
+          const SizedBox(height: 20),
+          const Center(
+            child: Column(
+              children: [
+                CowMascotWidget(size: 40, mood: CowMood.celebrating, showMilkPacket: false),
+                SizedBox(height: 8),
+                Text(
+                  'Doodh Dost — Your daily milk business, made simple.',
+                  style: TextStyle(fontSize: 11, color: AppColors.textSecondary, fontWeight: FontWeight.w500),
+                ),
+                SizedBox(height: 20),
+              ],
+            ),
           ),
         ],
       ),
